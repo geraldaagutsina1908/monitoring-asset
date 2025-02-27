@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitoring Aset IT</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css">
+</head>
+<body>
+    <div class="container mt-4">
+        <h2 class="text-center">Sistem Monitoring Aset IT</h2>
+        
+        <div class="mb-3 text-center">
+            <button class="btn btn-primary" onclick="loadAssets()">Tampilkan Aset</button>
+            <span id="loading" style="display: none; margin-left: 10px;">⏳ Loading...</span>
+        </div>
+        
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>ID Aset</th>
+                    <th>Nama Aset</th>
+                    <th>Jenis</th>
+                    <th>Model</th>
+                    <th>Accurate</th>
+                    <th>Spesifikasi</th>
+                    <th>Tanggal Pembelian</th>
+                    <th>Garansi</th>
+                    <th>IP</th>
+                    <th>Remote Address</th>
+                    <th>Password Remote</th>
+                    <th>Status</th>
+                    <th>Tanggal Update</th>
+                    <th>Catatan Perubahan</th>
+                    <th>Update Oleh</th>
+                </tr>
+            </thead>
+            <tbody id="assetTable">
+                <tr><td colspan="15" class="text-center">Klik tombol di atas untuk menampilkan data</td></tr>
+            </tbody>
+        </table>
+    </div>
+    
+    <script>
+        // Fungsi untuk mengubah format tanggal dari ISO ke format DD/MM/YYYY
+        function formatDate(isoString) {
+            if (!isoString) return "-";  
+            let date = new Date(isoString);
+            return isNaN(date.getTime()) ? "-" : date.toLocaleDateString("id-ID", { day: "2-digit", month: "2-digit", year: "numeric" });
+        }
+
+        // Fungsi untuk mengambil data dari API Google Apps Script
+        async function loadAssets(useProxy = false) {
+            const apiUrl = "https://script.google.com/macros/s/AKfycbzHfDaKvPS-lIQdQOY610ZIQxgrHSWCZR8UupKtPeOWrWvq77j_ALE9f-YsCcTLRC8-gQ/exec?action=getAssets";
+            const proxyUrl = "https://cors-anywhere.herokuapp.com/";
+            const fetchUrl = useProxy ? proxyUrl + apiUrl : apiUrl;
+            
+            document.getElementById("loading").style.display = "inline"; // Tampilkan loading
+
+            try {
+                console.log(`Mengambil data dari API... ${useProxy ? "(Menggunakan Proxy)" : ""}`);
+                const response = await fetch(fetchUrl, { method: "GET", mode: "cors" });
+
+                console.log("Response status:", response.status);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                console.log("Data dari API:", data);
+
+                if (data.length === 0) {
+                    document.getElementById("assetTable").innerHTML = "<tr><td colspan='15' class='text-center'>Tidak ada data aset</td></tr>";
+                    return;
+                }
+
+                let tableContent = "";
+                data.forEach(asset => {
+                    tableContent += `<tr>
+                        <td>${asset.ID_Aset}</td>
+                        <td>${asset.Nama_aset}</td>
+                        <td>${asset.Jenis}</td>
+                        <td>${asset.Model}</td>
+                        <td>${asset.Accurate}</td>
+                        <td>${asset.Spesifikasi}</td>
+                        <td>${formatDate(asset.Tanggal_pembelian)}</td>
+                        <td>${asset.Garansi}</td>
+                        <td>${asset.IP}</td>
+                        <td>${asset.Remote_Address}</td>
+                        <td>${asset.Password_Remote}</td>
+                        <td>${asset.Status}</td>
+                        <td>${formatDate(asset.Tanggal_Update)}</td>
+                        <td>${asset.Catatan_Perubahan}</td>
+                        <td>${asset.Update_Oleh}</td>
+                    </tr>`;
+                });
+
+                document.getElementById("assetTable").innerHTML = tableContent;
+                console.log("Data berhasil dimasukkan ke tabel.");
+
+            } catch (error) {
+                console.error("Error fetching data:", error);
+
+                if (!useProxy) {
+                    console.log("Mencoba kembali dengan proxy...");
+                    loadAssets(true); // Coba ulang dengan proxy jika gagal
+                } else {
+                    document.getElementById("assetTable").innerHTML = "<tr><td colspan='15' class='text-center text-danger'>Gagal mengambil data. Periksa koneksi atau API.</td></tr>";
+                }
+            } finally {
+                document.getElementById("loading").style.display = "none"; // Sembunyikan loading
+            }
+        }
+    </script>
+</body>
+</html>
