@@ -49,15 +49,17 @@
             return isNaN(date.getTime()) ? "-" : date.toLocaleDateString("id-ID", { day: "2-digit", month: "2-digit", year: "numeric" });
         }
 
-        // Fungsi untuk mengambil data dari API Google Apps Script
+        // Fungsi untuk mengambil data dari API Google Apps Script dengan Proxy
         async function loadAssets() {
-            const apiUrl = "https://script.google.com/macros/s/AKfycbzHfDaKvPS-lIQdQOY610ZIQxgrHSWCZR8UupKtPeOWrWvq77j_ALE9f-YsCcTLRC8-gQ/exec?action=getAssets";
+            const proxyUrl = "https://cors-anywhere.herokuapp.com/";
+            const googleScriptUrl = "https://script.google.com/macros/s/AKfycbzHfDaKvPS-lIQdQOY610ZIQxgrHSWCZR8UupKtPeOWrWvq77j_ALE9f-YsCcTLRC8-gQ/exec?action=getAssets";
+            const apiUrl = proxyUrl + googleScriptUrl;
             
             document.getElementById("loading").style.display = "inline"; // Tampilkan loading
 
             try {
-                console.log("Mengambil data dari API...");
-                const response = await fetch(apiUrl, { method: "GET" });
+                console.log("Mengambil data dari API dengan Proxy...");
+                const response = await fetch(apiUrl, { method: "GET", headers: { "X-Requested-With": "XMLHttpRequest" } });
 
                 console.log("Response status:", response.status);
                 if (!response.ok) {
