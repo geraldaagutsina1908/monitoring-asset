@@ -42,47 +42,96 @@
     </div>
     
     <script>
-        // Fungsi untuk mengubah format tanggal dari ISO ke format DD/MM/YYYY
+        // Konfigurasi
+        const CONFIG = {
+            API_URL: "https://script.google.com/macros/s/AKfycbzHfDaKvPS-lIQdQOY610ZIQxgrHSWCZR8UupKtPeOWrWvq77j_ALE9f-YsCcTLRC8-gQ/exec?action=getAssets",
+            PROXIES: [
+                'https://api.allorigins.win/raw?url=',
+                'https://corsproxy.io/?',
+                'https://thingproxy.freeboard.io/fetch/'
+            ],
+            MAX_RETRIES: 3
+        };
+
         function formatDate(isoString) {
-            if (!isoString) return "-";  
-            let date = new Date(isoString);
-            return isNaN(date.getTime()) ? "-" : date.toLocaleDateString("id-ID", { day: "2-digit", month: "2-digit", year: "numeric" });
+            if (!isoString) return "-";
+            const date = new Date(isoString);
+            return isNaN(date.getTime()) ? "-" : 
+                date.toLocaleDateString("id-ID", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "numeric"
+                });
         }
 
-        // Fungsi untuk mengambil data dari API Google Apps Script dengan Proxy Opsional
-        async function loadAssets(useProxy = false) {
-            const apiUrl = "https://script.google.com/macros/s/YOUR_NEW_SCRIPT_ID/exec?action=getAssets";
-            const proxyUrl = "https://corsproxy.io/?";
-            const fetchUrl = useProxy ? proxyUrl + encodeURIComponent(apiUrl) : apiUrl;
+        async function fetchWithTimeout(url, timeout = 8000) {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), timeout);
             
-            document.getElementById("loading").style.display = "inline"; // Tampilkan loading
-
             try {
-                console.log(`Mengambil data dari API... ${useProxy ? "(Menggunakan Proxy)" : ""}`);
-                const response = await fetch(fetchUrl, {
-                    method: "GET",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "X-Requested-With": "XMLHttpRequest"
-                    }
+                const response = await fetch(url, {
+                    signal: controller.signal,
+                    redirect: 'follow'
                 });
+                clearTimeout(timeoutId);
+                return response;
+            } catch (error) {
+                clearTimeout(timeoutId);
+                throw error;
+            }
+        }
 
-                console.log("Response status:", response.status);
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-
+        async function tryFetch(url, attempt = 0) {
+            try {
+                console.log(`Attempt ${attempt + 1}: Fetching from ${url}`);
+                const response = await fetchWithTimeout(url);
+                
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                
                 const data = await response.json();
-                console.log("Data dari API:", data);
-
-                if (!data || data.length === 0) {
-                    document.getElementById("assetTable").innerHTML = "<tr><td colspan='15' class='text-center'>Tidak ada data aset</td></tr>";
-                    return;
+                return data;
+            } catch (error) {
+                if (attempt < CONFIG.MAX_RETRIES - 1) {
+                    console.log(`Retrying... (${attempt + 1}/${CONFIG.MAX_RETRIES})`);
+                    return tryFetch(url, attempt + 1);
                 }
+                throw error;
+            }
+        }
 
-                let tableContent = "";
-                data.forEach(asset => {
-                    tableContent += `<tr>
+        async function loadAssets() {
+            document.getElementById("loading").style.display = "inline";
+            
+            try {
+                // Coba akses langsung pertama kali
+                let data = await tryFetch(CONFIG.API_URL);
+                renderTable(data);
+            } catch (directError) {
+                console.log("Direct access failed, trying proxies...");
+                
+                // Coba melalui berbagai proxy
+                for (const proxy of CONFIG.PROXIES) {
+                    try {
+                        const proxyUrl = proxy + encodeURIComponent(CONFIG.API_URL);
+                        const data = await tryFetch(proxyUrl);
+                        renderTable(data);
+                        return;
+                    } catch (proxyError) {
+                        console.log(`Proxy ${proxy} failed:`, proxyError.message);
+                    }
+                }
+                
+                // Jika semua gagal
+                showError();
+            } finally {
+                document.getElementById("loading").style.display = "none";
+            }
+        }
+
+        function renderTable(data) {
+            const tableContent = data.length > 0 ? 
+                data.map(asset => `
+                    <tr>
                         <td>${asset.ID_Aset}</td>
                         <td>${asset.Nama_aset}</td>
                         <td>${asset.Jenis}</td>
@@ -98,24 +147,23 @@
                         <td>${formatDate(asset.Tanggal_Update)}</td>
                         <td>${asset.Catatan_Perubahan}</td>
                         <td>${asset.Update_Oleh}</td>
-                    </tr>`;
-                });
+                    </tr>
+                `).join('') : 
+                '<tr><td colspan="15" class="text-center">Tidak ada data aset</td></tr>';
+            
+            document.getElementById("assetTable").innerHTML = tableContent;
+        }
 
-                document.getElementById("assetTable").innerHTML = tableContent;
-                console.log("Data berhasil dimasukkan ke tabel.");
-
-            } catch (error) {
-                console.error("Error fetching data:", error);
-                
-                if (!useProxy) {
-                    console.log("Mencoba kembali dengan proxy...");
-                    loadAssets(true); // Coba ulang dengan proxy jika gagal
-                } else {
-                    document.getElementById("assetTable").innerHTML = "<tr><td colspan='15' class='text-center text-danger'>Gagal mengambil data. Periksa koneksi atau API.</td></tr>";
-                }
-            } finally {
-                document.getElementById("loading").style.display = "none"; // Sembunyikan loading
-            }
+        function showError() {
+            document.getElementById("assetTable").innerHTML = `
+                <tr>
+                    <td colspan="15" class="text-center text-danger">
+                        Gagal mengambil data. Periksa:<br>
+                        1. Koneksi internet<br>
+                        2. Izin akses API<br>
+                        3. Ketersediaan layanan
+                    </td>
+                </tr>`;
         }
     </script>
 </body>
