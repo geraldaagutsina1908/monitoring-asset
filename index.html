@@ -49,17 +49,23 @@
             return isNaN(date.getTime()) ? "-" : date.toLocaleDateString("id-ID", { day: "2-digit", month: "2-digit", year: "numeric" });
         }
 
-        // Fungsi untuk mengambil data dari API Google Apps Script dengan Proxy
-        async function loadAssets() {
-            const proxyUrl = "https://cors-anywhere.herokuapp.com/";
-            const googleScriptUrl = "https://script.google.com/macros/s/AKfycbzHfDaKvPS-lIQdQOY610ZIQxgrHSWCZR8UupKtPeOWrWvq77j_ALE9f-YsCcTLRC8-gQ/exec?action=getAssets";
-            const apiUrl = proxyUrl + googleScriptUrl;
+        // Fungsi untuk mengambil data dari API Google Apps Script dengan Proxy Opsional
+        async function loadAssets(useProxy = false) {
+            const apiUrl = "https://script.google.com/macros/s/YOUR_NEW_SCRIPT_ID/exec?action=getAssets";
+            const proxyUrl = "https://corsproxy.io/?";
+            const fetchUrl = useProxy ? proxyUrl + encodeURIComponent(apiUrl) : apiUrl;
             
             document.getElementById("loading").style.display = "inline"; // Tampilkan loading
 
             try {
-                console.log("Mengambil data dari API dengan Proxy...");
-                const response = await fetch(apiUrl, { method: "GET", headers: { "X-Requested-With": "XMLHttpRequest" } });
+                console.log(`Mengambil data dari API... ${useProxy ? "(Menggunakan Proxy)" : ""}`);
+                const response = await fetch(fetchUrl, {
+                    method: "GET",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-Requested-With": "XMLHttpRequest"
+                    }
+                });
 
                 console.log("Response status:", response.status);
                 if (!response.ok) {
@@ -100,7 +106,13 @@
 
             } catch (error) {
                 console.error("Error fetching data:", error);
-                document.getElementById("assetTable").innerHTML = "<tr><td colspan='15' class='text-center text-danger'>Gagal mengambil data. Periksa koneksi atau API.</td></tr>";
+                
+                if (!useProxy) {
+                    console.log("Mencoba kembali dengan proxy...");
+                    loadAssets(true); // Coba ulang dengan proxy jika gagal
+                } else {
+                    document.getElementById("assetTable").innerHTML = "<tr><td colspan='15' class='text-center text-danger'>Gagal mengambil data. Periksa koneksi atau API.</td></tr>";
+                }
             } finally {
                 document.getElementById("loading").style.display = "none"; // Sembunyikan loading
             }
